@@ -1,0 +1,25 @@
+name: brent_wti_project
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.12
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib-base
+  - seaborn
+  - scipy
+  - statsmodels
+  - joblib
+  - requests
+  - openpyxl
+  - tqdm
+  - ipykernel
+  - jupyterlab
+  - lightgbm
+  - cvxpy
+  - pip
+  - pip:
+      - yfinance

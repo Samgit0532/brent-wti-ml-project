@@ -1,0 +1,20 @@
+# VS Code
+.vscode/
+
+# Conda
+.conda/
+
+.DS_Store
+
+# Environnements virtuels
+.env
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.py[cod]
