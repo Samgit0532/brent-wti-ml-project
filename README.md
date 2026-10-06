@@ -9,8 +9,8 @@ The objective of this project is to investigate whether oil market fundamentals 
 ## Installation
 
 ```bash
-git clone <repository-url>
-cd <repository-name>
+git clone https://github.com/Samgit0532/brent-wti-ml-project.git
+cd brent-wti-ml-project
 ./setup_env.sh
 ```
 
