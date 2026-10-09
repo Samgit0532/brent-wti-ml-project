@@ -14,7 +14,7 @@ from lightgbm import LGBMRegressor
 
 
 def get_models():
-    """
+    r"""
     Define all forecasting models:
     - Econometric baselines (Naive Zero, Historical Mean, AR(1))
     - Regularized linear model (Ridge)
@@ -152,44 +152,36 @@ def rolling_forecast(
 
 def forecast_metrics(predictions):
     """
-    Compute forecasting performance metrics.
-
-    Parameters
-    ----------
-    predictions : pd.DataFrame
-        DataFrame containing:
-        - y_true
-        - y_pred
-
-    Returns
-    -------
-    dict
-        Forecasting performance metrics.
+    Compute forecasting performance metrics safely,
+    handling zero-variance predictions (e.g., naive zero benchmark).
     """
+    y_true = np.asarray(predictions["y_true"], dtype=float)
+    y_pred = np.asarray(predictions["y_pred"], dtype=float)
 
-    y_true = predictions["y_true"]
-    y_pred = predictions["y_pred"]
+    rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
+    mae = float(mean_absolute_error(y_true, y_pred))
+    r2 = float(r2_score(y_true, y_pred))
 
-    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-    mae = mean_absolute_error(y_true, y_pred)
-    r2 = r2_score(y_true, y_pred)
+    # Safe correlation calculation: avoids division by zero if std is zero
+    std_true = np.std(y_true)
+    std_pred = np.std(y_pred)
 
-    corr = pd.Series(y_true).corr(pd.Series(y_pred))
+    if std_true < 1e-12 or std_pred < 1e-12:
+        corr = 0.0
+    else:
+        # np.corrcoef returns a 2x2 matrix
+        corr = float(np.corrcoef(y_true, y_pred)[0, 1])
 
-    directional_accuracy = (
-        np.sign(y_true) == np.sign(y_pred)
-    ).mean()
+    # Directional accuracy: sign agreement
+    directional_accuracy = float(np.mean(np.sign(y_true) == np.sign(y_pred)))
 
-    metrics = {
+    return {
         "rmse": rmse,
         "mae": mae,
         "r2": r2,
         "correlation": corr,
         "directional_accuracy": directional_accuracy,
     }
-
-    return metrics
-
 
 def run_model_comparison(
     data,
@@ -464,7 +456,7 @@ def run_overfitting_diagnostics(
 
 
 class NaiveZeroBenchmark(BaseEstimator, RegressorMixin):
-    """
+    r"""
     Random Walk / No-Change Benchmark for Spread Variation.
     Always forecasts zero change: \hat{\Delta S}_{t+1} = 0.
     """
@@ -477,7 +469,7 @@ class NaiveZeroBenchmark(BaseEstimator, RegressorMixin):
 
 
 class HistoricalMeanBenchmark(BaseEstimator, RegressorMixin):
-    """
+    r"""
     Prevailing Historical Mean Benchmark.
     Forecasts the expanding historical average of target changes:
     \hat{\Delta S}_{t+1} = (1 / t) \sum_{\tau=1}^t \Delta S_\tau.
@@ -496,7 +488,7 @@ class HistoricalMeanBenchmark(BaseEstimator, RegressorMixin):
 
 
 class AR1Benchmark(BaseEstimator, RegressorMixin):
-    """
+    r"""
     Univariate Autoregressive AR(1) Benchmark.
     Regresses the next-month spread change on the most recent spread change:
     \Delta S_{t+1} = \alpha + \beta \Delta S_t + \epsilon_{t+1}.
@@ -533,7 +525,7 @@ class AR1Benchmark(BaseEstimator, RegressorMixin):
 
 
 def diebold_mariano_test(y_true, y_pred1, y_pred2, h=None, loss_type="sq", use_hln=True):
-    """
+    r"""
     Diebold-Mariano (1995) and Harvey-Leybourne-Newbold (HLN, 1997) tests
     for comparing predictive accuracy between two competing forecasts.
 
