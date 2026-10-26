@@ -1,66 +1,90 @@
-# Project: Forecasting the Brent–WTI Spread Using Oil Market Fundamentals
+# Brent–WTI Spread Forecasting
 
-## Objective
+A machine-learning project comparing price-based forecasts with oil market fundamentals, followed by a long–short trading backtest.
 
-The objective of this project is to investigate whether oil market fundamentals improve the prediction of the **Brent–WTI spread** compared with models based solely on historical price data. In a second step, these forecasts will be used to build and evaluate different portfolio strategies.
-
----
+The economic motivation, methodology, results, and references are presented in `main.ipynb`.
 
 ## Installation
+
+Requirements: Git and Conda (Anaconda or Miniconda).
 
 ```bash
 git clone https://github.com/Samgit0532/brent-wti-ml-project.git
 cd brent-wti-ml-project
-./setup_env.sh
+bash setup_env.sh
 ```
 
----
+The setup script creates or updates the `brent_wti_project` environment and registers the Jupyter kernel **Python (Brent-WTI)**.
 
-# 1. Data
+## Run the project
 
-The project relies on two main categories of data.
+From the project root:
 
-### Oil Prices (EIA / FRED)
+```bash
+conda activate brent_wti_project
+jupyter lab
+```
 
-We downloaded historical spot price series for:
+Open `main.ipynb`, select **Python (Brent-WTI)**, and run the cells in order using **Restart Kernel and Run All Cells**.
 
-- Brent (Europe)
-- WTI (United States)
+Alternatively, open the repository in VS Code and select the same notebook kernel.
 
-These data are used to compute:
+Run the notebook from the project root: data paths and imports from `scripts/` depend on this working directory.
 
-- the Brent–WTI spread;
-- returns;
-- volatility;
-- correlations.
+## Required data
 
-### Oil Market Fundamentals (JODI Oil and EIA)
+The installation script installs dependencies; it does not download the datasets.
 
-Fundamental data mainly come from **JODI Oil** (monthly frequency), complemented when necessary with **EIA** data for the United States.
+The notebook expects:
 
-The main variables collected are:
+| Location | Contents |
+|---|---|
+| `data/EIA/spot_brent.csv` | Daily Brent spot prices exported from FRED |
+| `data/EIA/spot_wti.csv` | Daily WTI spot prices exported from FRED |
+| `data/JODI/` | Yearly JODI Oil CSV files |
 
-- Oil inventories;
-- Inventory changes;
-- Production;
-- Imports;
-- Exports;
-- Refinery intake.
+The FRED files should contain a date column and one price column.
 
-The dataset covers the **United States** and several **European countries**, with observations starting in the early 2000s.
+The JODI files should include:
+`REF_AREA`, `TIME_PERIOD`, `ENERGY_PRODUCT`, `FLOW_BREAKDOWN`,
+`UNIT_MEASURE`, `OBS_VALUE`, and `ASSESSMENT_CODE`.
 
----
+Sources:
 
-# 2. Analysis and Forecasting
+- [Brent prices — FRED](https://fred.stlouisfed.org/series/DCOILBRENTEU)
+- [WTI prices — FRED](https://fred.stlouisfed.org/series/DCOILWTICO)
+- [JODI Oil](https://www.jodidata.org/oil/)
 
-This section focuses on data preparation, feature engineering, and the comparison of several forecasting models for the Brent–WTI spread.
+## What the notebook runs
 
-The objective is to assess whether incorporating oil market fundamentals improves predictive performance compared with models relying only on historical prices. Several regression and machine learning approaches will be evaluated using an out-of-sample validation framework.
+1. **Data preparation:** clean daily prices, construct monthly observations, and aggregate JODI fundamentals.
+2. **Predictor construction:** build price variables, transform fundamentals, and define five information sets.
+3. **Forecasting:** generate rolling forecasts using statistical benchmarks, Ridge, Random Forest, and LightGBM.
+4. **Evaluation:** compare forecast errors, directional accuracy, stability over time, and model diagnostics.
+5. **Trading:** convert forecasts into equal-barrel Brent–WTI positions and compare fixed and risk-scaled quantities before and after transaction costs.
 
----
+Tables and figures are displayed directly in the notebook. Rolling model fitting is the most computationally intensive step.
 
-# 3. Portfolio Construction
+## Code organization
 
-The forecasts obtained in the previous step are then used to build different investment strategies based on the Brent–WTI spread.
+| File | Role |
+|---|---|
+| `main.ipynb` | Research workflow, results, and interpretation |
+| `scripts/cleaning.py` | Price and JODI cleaning |
+| `scripts/features.py` | Monthly predictors, aggregates, transformations, and merging |
+| `scripts/models.py` | Model definitions, rolling forecasts, and forecast metrics |
+| `scripts/backtest.py` | Positions, transaction costs, and strategy metrics |
+| `scripts/plots.py` | Reusable plotting functions |
+| `scripts/tests.py` | Statistical diagnostic helpers |
+| `environment.yml` | Conda dependencies |
+| `setup_env.sh` | Environment and notebook-kernel setup |
 
-The strategies will be evaluated both before and after transaction costs and compared with simple benchmark strategies to determine whether the predictive models generate economic value.
+## Configuration and reproducibility
+
+Evaluation dates, training-window length, country groups, and trading assumptions are defined in the notebook. Model settings are defined in `get_ml_models()` in `scripts/models.py`.
+
+After changing a script, restart the kernel and rerun the notebook to avoid using an older imported function.
+
+Results depend on the input data and settings. Updating source files can change country coverage, the available sample, and reported performance.
+
+The trading exercise uses spot prices and simplified execution costs. It is a research simulation rather than an executable futures strategy.

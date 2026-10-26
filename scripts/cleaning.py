@@ -1,122 +1,39 @@
 from pathlib import Path
 import pandas as pd
 
-def clean_eia_prices(brent_path, wti_path, output_path):
-    """
-    Clean Brent and WTI EIA spot price CSV files and merge them on common dates.
+def clean_eia_prices(brent_path, wti_path):
+    """Clean and align the two FRED price series on common dates."""
 
-    Expected format for each raw CSV:
-    - observation_date
-    - one price column, for example DCOILBRENTEU or DCOILWTICO
+    def load_price(path, name):
+        df = pd.read_csv(Path(path), na_values=["."])
 
-    Parameters
-    ----------
-    brent_path : str or Path
-        Path to the raw Brent CSV file.
+        if len(df.columns) != 2:
+            raise ValueError(f"{path}: expected a date and a price column.")
 
-    wti_path : str or Path
-        Path to the raw WTI CSV file.
+        df.columns = ["date", name]
+        df["date"] = pd.to_datetime(df["date"], errors="raise")
+        df[name] = pd.to_numeric(df[name], errors="raise")
 
-    output_path : str or Path
-        Path where the cleaned merged CSV should be saved.
+        if df["date"].isna().any():
+            raise ValueError(f"{path}: missing dates.")
 
-    Returns
-    -------
-    pd.DataFrame
-        Cleaned dataframe with columns:
-        - date
-        - Brent
-        - WTI
-    """
+        if df["date"].duplicated().any():
+            raise ValueError(f"{path}: duplicate dates.")
 
-    brent_path = Path(brent_path)
-    wti_path = Path(wti_path)
+        return df.dropna(subset=[name]).sort_values("date")
 
-    brent = pd.read_csv(brent_path)
-    wti = pd.read_csv(wti_path)
+    brent = load_price(brent_path, "Brent")
+    wti = load_price(wti_path, "WTI")
 
-    brent_price_col = brent.columns[1]
-    wti_price_col = wti.columns[1]
+    prices = brent.merge(wti, on="date", how="inner", validate="one_to_one")
 
-    brent["observation_date"] = pd.to_datetime(brent["observation_date"])
-    wti["observation_date"] = pd.to_datetime(wti["observation_date"])
+    if prices.empty:
+        raise ValueError("No common dates with valid Brent and WTI prices.")
 
-    brent[brent_price_col] = pd.to_numeric(brent[brent_price_col], errors="coerce")
-    wti[wti_price_col] = pd.to_numeric(wti[wti_price_col], errors="coerce")
+    return prices.sort_values("date").reset_index(drop=True)
 
-    brent = brent.rename(
-        columns={
-            "observation_date": "date",
-            brent_price_col: "Brent",
-        }
-    )
-
-    wti = wti.rename(
-        columns={
-            "observation_date": "date",
-            wti_price_col: "WTI",
-        }
-    )
-
-    brent = brent[["date", "Brent"]].dropna()
-    wti = wti[["date", "WTI"]].dropna()
-
-    prices = brent.merge(wti, on="date", how="inner")
-    prices = prices.sort_values("date").reset_index(drop=True)
-
-    
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    prices.to_csv(output_path, index=False)
-
-    return prices
-
-def clean_jodi_oil(
-    input_dir,
-    output_path,
-    countries,
-    product="CRUDEOIL",
-):
-    """
-    Clean and merge yearly JODI Oil CSV files into a single wide dataframe.
-
-    Expected format for each raw CSV:
-    - REF_AREA
-    - TIME_PERIOD
-    - ENERGY_PRODUCT
-    - FLOW_BREAKDOWN
-    - UNIT_MEASURE
-    - OBS_VALUE
-    - ASSESSMENT_CODE
-
-    Parameters
-    ----------
-    input_dir : str or Path
-        Path to the directory containing yearly JODI CSV files.
-
-    output_path : str or Path
-        Path where the cleaned JODI dataset should be saved.
-
-    countries : list of str
-        List of country codes to include in the cleaned dataset.
-
-    Returns
-    -------
-    pd.DataFrame
-        Cleaned wide dataframe with one row per month and one column per
-        country-flow variable.
-    """
-
-    input_dir = Path(input_dir)
-
-    flows = [
-        "CLOSTLV",   # Closing stock levels
-        "STOCKCH",   # Stock changes
-        "INDPROD",   # Indigenous production
-        "TOTIMPSB",  # Total imports
-        "TOTEXPSB",  # Total exports
-        "REFINOBS",  # Refinery intake / refinery observations
-    ]
+def clean_jodi_oil(input_dir):
+    """Load JODI crude oil fundamentals with consistent units."""
 
     units = {
         "CLOSTLV": "KBBL",
@@ -127,58 +44,53 @@ def clean_jodi_oil(
         "REFINOBS": "KBD",
     }
 
-    files = sorted(input_dir.glob("*.csv"))
+    files = sorted(Path(input_dir).glob("*.csv"))
 
     if not files:
         raise FileNotFoundError(f"No CSV files found in {input_dir}")
 
-    dataframes = []
+    frames = []
 
-    for file in files:
-        df = pd.read_csv(file)
-        dataframes.append(df)
+    for path in files:
+        df = pd.read_csv(path)
 
-    jodi = pd.concat(dataframes, ignore_index=True)
+        keep = (
+            df["ENERGY_PRODUCT"].eq("CRUDEOIL")
+            & df["UNIT_MEASURE"].eq(df["FLOW_BREAKDOWN"].map(units))
+        )
+        frames.append(df.loc[keep].copy())
 
-    jodi["date"] = pd.to_datetime(jodi["TIME_PERIOD"])
-    jodi["OBS_VALUE"] = pd.to_numeric(jodi["OBS_VALUE"], errors="coerce")
+    jodi = pd.concat(frames, ignore_index=True).drop_duplicates()
 
-    jodi = jodi[jodi["ENERGY_PRODUCT"] == product]
-    jodi = jodi[jodi["FLOW_BREAKDOWN"].isin(flows)]
+    jodi["TIME_PERIOD"] = pd.to_datetime(
+        jodi["TIME_PERIOD"], format="%Y-%m", errors="raise"
+    )
+    jodi["OBS_VALUE"] = pd.to_numeric(
+        jodi["OBS_VALUE"], errors="coerce"
+    )
 
-    if countries is not None:
-        jodi = jodi[jodi["REF_AREA"].isin(countries)]
+    jodi = jodi.rename(
+        columns={
+            "REF_AREA": "country",
+            "TIME_PERIOD": "date",
+            "FLOW_BREAKDOWN": "variable",
+            "UNIT_MEASURE": "unit",
+            "OBS_VALUE": "value",
+            "ASSESSMENT_CODE": "assessment_code",
+        }
+    )
 
-    unit_filter = pd.Series(False, index=jodi.index)
+    keys = ["country", "date", "variable"]
 
-    for flow, unit in units.items():
-        unit_filter |= (
-            (jodi["FLOW_BREAKDOWN"] == flow)
-            & (jodi["UNIT_MEASURE"] == unit)
+    if jodi.duplicated(keys).any():
+        raise ValueError(
+            "Multiple records found for the same country, month and variable."
         )
 
-    jodi = jodi[unit_filter]
-
-    jodi = jodi.dropna(subset=["date", "OBS_VALUE"])
-
-    jodi["variable"] = (
-        jodi["REF_AREA"]
-        + "_"
-        + jodi["FLOW_BREAKDOWN"]
+    return (
+        jodi[
+            ["country", "date", "variable", "unit", "value", "assessment_code"]
+        ]
+        .sort_values(keys)
+        .reset_index(drop=True)
     )
-
-    jodi_wide = jodi.pivot_table(
-        index="date",
-        columns="variable",
-        values="OBS_VALUE",
-        aggfunc="mean",
-    )
-
-    jodi_wide = jodi_wide.sort_index().reset_index()
-
-    if output_path is not None:
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        jodi_wide.to_csv(output_path, index=False)
-
-    return jodi_wide
