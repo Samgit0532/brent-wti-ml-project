@@ -111,3 +111,65 @@ def build_rolling_stacking(
     ).reset_index().rename(columns={"index": "date"})
 
     return ensemble_forecasts, weights_df
+
+
+def add_ensembles_to_diagnostics(diagnostics_df, diagnostics_predictions, feature_sets, train_windows):
+    """
+    Calcule automatiquement les 3 modèles d'Ensemble (1/N, Mbj Unconstrained, Mbj Positive)
+    pour toutes les fenêtres et jeux de données, et les fusionne dans diagnostics_df et diagnostics_predictions.
+    """
+    new_records = []
+    
+    for window in train_windows:
+        for fset in feature_sets.keys():
+            ensemble_forecasts, _ = build_rolling_stacking(
+                diagnostics_predictions=diagnostics_predictions,
+                feature_set=fset,
+                train_window=window,
+                base_models=("ridge_cv", "random_forest", "lightgbm"),
+                stack_window=60,
+                min_periods=24,
+            )
+            
+            strats = {
+                "ensemble_1_over_n": "pred_equal_weight",
+                "ensemble_mbj_unconstrained": "pred_mbj_unconstrained",
+                "ensemble_mbj_positive": "pred_mbj_positive",
+            }
+            
+            for model_name, col in strats.items():
+                oos_df = pd.DataFrame({
+                    "date": pd.to_datetime(ensemble_forecasts["date"]),
+                    "y_true": ensemble_forecasts["y_true"],
+                    "y_pred": ensemble_forecasts[col]
+                }).dropna().sort_values("date").reset_index(drop=True)
+                
+                key = f"{fset}__{model_name}__window_{window}"
+                diagnostics_predictions[key] = {"oos": oos_df, "train": None}
+                
+                m = forecast_metrics(oos_df)
+                
+                new_records.append({
+                    "train_window": window,
+                    "feature_set": fset,
+                    "model": model_name,
+                    "n_features": len(feature_sets[fset]),
+                    "n_oos": len(oos_df),
+                    "train_rmse": np.nan,
+                    "oos_rmse": m["rmse"],
+                    "rmse_gap": np.nan,
+                    "train_mae": np.nan,
+                    "oos_mae": m["mae"],
+                    "train_r2": np.nan,
+                    "oos_r2": m["r2"],
+                    "r2_gap": np.nan,
+                    "train_correlation": np.nan,
+                    "oos_correlation": m["correlation"],
+                    "train_directional_accuracy": np.nan,
+                    "oos_directional_accuracy": m["directional_accuracy"],
+                    "oos_start": oos_df["date"].min(),
+                    "oos_end": oos_df["date"].max(),
+                })
+
+    full_diagnostics_df = pd.concat([diagnostics_df, pd.DataFrame(new_records)], ignore_index=True)
+    return full_diagnostics_df, diagnostics_predictions
