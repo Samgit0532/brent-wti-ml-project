@@ -1,3 +1,5 @@
+f
+
 # Brent–WTI Spread Forecasting
 
 A machine-learning project comparing price-based forecasts with oil market fundamentals, followed by a long–short trading backtest.
@@ -37,11 +39,11 @@ The installation script installs dependencies; it does not download the datasets
 
 The notebook expects:
 
-| Location | Contents |
-|---|---|
+| Location                    | Contents                                   |
+| --------------------------- | ------------------------------------------ |
 | `data/EIA/spot_brent.csv` | Daily Brent spot prices exported from FRED |
-| `data/EIA/spot_wti.csv` | Daily WTI spot prices exported from FRED |
-| `data/JODI/` | Yearly JODI Oil CSV files |
+| `data/EIA/spot_wti.csv`   | Daily WTI spot prices exported from FRED   |
+| `data/JODI/`              | Yearly JODI Oil CSV files                  |
 
 The FRED files should contain a date column and one price column.
 
@@ -67,17 +69,17 @@ Tables and figures are displayed directly in the notebook. Rolling model fitting
 
 ## Code organization
 
-| File | Role |
-|---|---|
-| `main.ipynb` | Research workflow, results, and interpretation |
-| `scripts/cleaning.py` | Price and JODI cleaning |
+| File                    | Role                                                         |
+| ----------------------- | ------------------------------------------------------------ |
+| `main.ipynb`          | Research workflow, results, and interpretation               |
+| `scripts/cleaning.py` | Price and JODI cleaning                                      |
 | `scripts/features.py` | Monthly predictors, aggregates, transformations, and merging |
-| `scripts/models.py` | Model definitions, rolling forecasts, and forecast metrics |
-| `scripts/backtest.py` | Positions, transaction costs, and strategy metrics |
-| `scripts/plots.py` | Reusable plotting functions |
-| `scripts/tests.py` | Statistical diagnostic helpers |
-| `environment.yml` | Conda dependencies |
-| `setup_env.sh` | Environment and notebook-kernel setup |
+| `scripts/models.py`   | Model definitions, rolling forecasts, and forecast metrics   |
+| `scripts/backtest.py` | Positions, transaction costs, and strategy metrics           |
+| `scripts/plots.py`    | Reusable plotting functions                                  |
+| `scripts/tests.py`    | Statistical diagnostic helpers                               |
+| `environment.yml`     | Conda dependencies                                           |
+| `setup_env.sh`        | Environment and notebook-kernel setup                        |
 
 ## Configuration and reproducibility
 
